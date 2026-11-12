@@ -1,22 +1,21 @@
 // Render a workout summary to a shareable PNG image.
 //
-// 1080×1920 portrait (9:16, the size of a story). The content keeps clear of
-// the top and bottom bands that story apps cover with their own controls.
-// Uses <canvas> directly so there's no extra dependency and no web-font
-// loading required — system sans-serif renders crisply everywhere.
+// 1080×1350 portrait (Instagram feed / story friendly). Uses <canvas> directly
+// so there's no extra dependency and no web-font loading required — system
+// sans-serif renders crisply everywhere.
 //
 // Pulls the current accent color from the CSS custom property so the card
 // matches the user's theme.
+//
+// With { transparent: true } the card has no background, to paste over a
+// photo: lighter greys, see-through tiles and a soft shadow keep it readable
+// on whatever ends up behind it.
 
 // workout.js is pure (no stores), so importing it keeps this renderer self-contained.
 import { isRepSet, setKind, setAmount, fmtSetLabel, distanceUnitOf, setReps } from './workout.js';
 
 const W = 1080;
-const H = 1920;
-// Everything below the background is drawn this far down, and the list and
-// footer stop this far above the bottom edge.
-const SAFE_TOP = 200;
-const SAFE_BOTTOM = 240;
+const H = 1350;
 
 function _cssVar(name, fallback) {
   try {
@@ -81,9 +80,10 @@ function _computeStats(workout) {
 /**
  * @param {object} workout  { name, date, duration_min, exercises: [...] }
  * @param {string} unit     weight unit label ('lbs' or 'kg')
+ * @param {{ transparent?: boolean }} [opts]
  * @returns {Promise<Blob>} PNG blob
  */
-export async function renderWorkoutCard(workout, unit = 'lbs') {
+export async function renderWorkoutCard(workout, unit = 'lbs', { transparent = false } = {}) {
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
@@ -93,24 +93,27 @@ export async function renderWorkoutCard(workout, unit = 'lbs') {
   const accent = _cssVar('--accent', '#FF7433');
   const accent2 = _cssVar('--accent-2', accent);
   const bg = '#0A0B0F';
-  const surface = '#16181E';
+  const surface = transparent ? 'rgba(0, 0, 0, 0.38)' : '#16181E';
   const text1 = '#F5F6F8';
-  const text2 = '#A8AFBD';
-  const text3 = '#6B7280';
+  const text2 = transparent ? 'rgba(255, 255, 255, 0.88)' : '#A8AFBD';
+  const text3 = transparent ? 'rgba(255, 255, 255, 0.72)' : '#6B7280';
+  const line  = transparent ? 'rgba(255, 255, 255, 0.28)' : '#23262E';
 
-  // ── Background ───────────────────────────────────────────────────────
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
+  if (transparent) {
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+    ctx.shadowBlur = 10;
+  } else {
+    // ── Background ─────────────────────────────────────────────────────
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
 
-  // Soft accent glow in the top-right corner
-  const grad = ctx.createRadialGradient(W - 100, -100, 50, W - 100, -100, 700);
-  grad.addColorStop(0, accent + '55');  // add ~33% alpha
-  grad.addColorStop(1, accent + '00');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-
-  // The layout below is written from y = 0; start it under the top band.
-  ctx.translate(0, SAFE_TOP);
+    // Soft accent glow in the top-right corner
+    const grad = ctx.createRadialGradient(W - 100, -100, 50, W - 100, -100, 700);
+    grad.addColorStop(0, accent + '55');  // add ~33% alpha
+    grad.addColorStop(1, accent + '00');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
 
   // ── Header: LIFTTRACE wordmark ──────────────────────────────────────
   ctx.font = '700 32px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -170,7 +173,7 @@ export async function renderWorkoutCard(workout, unit = 'lbs') {
   ctx.textAlign = 'left';
   const listTop = 520;
   let y = listTop;
-  const maxListY = H - SAFE_TOP - SAFE_BOTTOM - 80;  // leave room for footer
+  const maxListY = H - 120;  // leave room for footer
   const rowGap = 60;
 
   const completedExercises = (workout.exercises || []).filter(ex =>
@@ -256,7 +259,7 @@ export async function renderWorkoutCard(workout, unit = 'lbs') {
       ctx.fillStyle = accent;
       ctx.fillRect(64, blockTop, 4, blockBottom - blockTop);
       // Bottom thin divider for the block.
-      ctx.strokeStyle = '#23262E';
+      ctx.strokeStyle = line;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(64, y - rowGap + 22);
@@ -267,7 +270,7 @@ export async function renderWorkoutCard(workout, unit = 'lbs') {
       const yBefore = y;
       y = _renderRow(g.exercise, y, 0);
       rendered++;
-      ctx.strokeStyle = '#23262E';
+      ctx.strokeStyle = line;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(64, yBefore + 18);
@@ -288,7 +291,7 @@ export async function renderWorkoutCard(workout, unit = 'lbs') {
   ctx.font = '600 22px system-ui, -apple-system, sans-serif';
   ctx.fillStyle = text3;
   ctx.textAlign = 'center';
-  ctx.fillText('lifttrace · track every rep', W / 2, H - SAFE_TOP - SAFE_BOTTOM);
+  ctx.fillText('lifttrace · track every rep', W / 2, H - 50);
 
   return new Promise(resolve => canvas.toBlob(b => resolve(b), 'image/png', 0.95));
 }
@@ -338,4 +341,14 @@ export async function shareWorkoutCard(workout, unit = 'lbs', rendered = null) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   return true;
+}
+
+/** Whether this browser can put an image on the clipboard (needs HTTPS or localhost). */
+export function canCopyImage() {
+  return typeof ClipboardItem !== 'undefined' && !!navigator.clipboard?.write;
+}
+
+/** Put a rendered card on the clipboard, to paste into a story or a chat. */
+export async function copyWorkoutCard(blob) {
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
 }

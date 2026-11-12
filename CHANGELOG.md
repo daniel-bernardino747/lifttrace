@@ -9,7 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- **Share shows the workout image before sending it, and the image is now 9:16.** Share on the Workout Complete sheet opens a preview with Cancel and Share, and nothing leaves the app until you tap Share. The image is 1080 x 1920, the size of a story, where it was 1080 x 1350, and keeps its text clear of the top and bottom that story apps cover.
+- **Share shows the workout image first, with a transparent background and Copy.** Share on the Workout Complete sheet opens a preview, and nothing leaves the app until you tap Share. Transparent drops the background, to put the card over a photo in a story, and Copy puts the image on the clipboard to paste it there (in a browser, over HTTPS).
 
 ### Security
 
