@@ -1,8 +1,9 @@
 // Render a workout summary to a shareable PNG image.
 //
-// 1080×1350 portrait (Instagram feed / story friendly). Uses <canvas> directly
-// so there's no extra dependency and no web-font loading required — system
-// sans-serif renders crisply everywhere.
+// 1080×1920 portrait (9:16, the size of a story). The content keeps clear of
+// the top and bottom bands that story apps cover with their own controls.
+// Uses <canvas> directly so there's no extra dependency and no web-font
+// loading required — system sans-serif renders crisply everywhere.
 //
 // Pulls the current accent color from the CSS custom property so the card
 // matches the user's theme.
@@ -11,7 +12,11 @@
 import { isRepSet, setKind, setAmount, fmtSetLabel, distanceUnitOf, setReps } from './workout.js';
 
 const W = 1080;
-const H = 1350;
+const H = 1920;
+// Everything below the background is drawn this far down, and the list and
+// footer stop this far above the bottom edge.
+const SAFE_TOP = 200;
+const SAFE_BOTTOM = 240;
 
 function _cssVar(name, fallback) {
   try {
@@ -104,6 +109,9 @@ export async function renderWorkoutCard(workout, unit = 'lbs') {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
+  // The layout below is written from y = 0; start it under the top band.
+  ctx.translate(0, SAFE_TOP);
+
   // ── Header: LIFTTRACE wordmark ──────────────────────────────────────
   ctx.font = '700 32px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = accent;
@@ -162,7 +170,7 @@ export async function renderWorkoutCard(workout, unit = 'lbs') {
   ctx.textAlign = 'left';
   const listTop = 520;
   let y = listTop;
-  const maxListY = H - 120;  // leave room for footer
+  const maxListY = H - SAFE_TOP - SAFE_BOTTOM - 80;  // leave room for footer
   const rowGap = 60;
 
   const completedExercises = (workout.exercises || []).filter(ex =>
@@ -280,7 +288,7 @@ export async function renderWorkoutCard(workout, unit = 'lbs') {
   ctx.font = '600 22px system-ui, -apple-system, sans-serif';
   ctx.fillStyle = text3;
   ctx.textAlign = 'center';
-  ctx.fillText('lifttrace · track every rep', W / 2, H - 50);
+  ctx.fillText('lifttrace · track every rep', W / 2, H - SAFE_TOP - SAFE_BOTTOM);
 
   return new Promise(resolve => canvas.toBlob(b => resolve(b), 'image/png', 0.95));
 }
@@ -298,9 +306,10 @@ function _roundRect(ctx, x, y, w, h, r) {
 /**
  * Share a workout card using Web Share API if available (with file),
  * otherwise trigger a download. Returns true if shared/downloaded.
+ * Pass the blob already rendered for a preview to share that exact image.
  */
-export async function shareWorkoutCard(workout, unit = 'lbs') {
-  const blob = await renderWorkoutCard(workout, unit);
+export async function shareWorkoutCard(workout, unit = 'lbs', rendered = null) {
+  const blob = rendered || await renderWorkoutCard(workout, unit);
   if (!blob) return false;
 
   const filename = `lifttrace-${(workout.name || 'workout').replace(/\s+/g, '-').toLowerCase()}-${workout.date || 'today'}.png`;

@@ -7,6 +7,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Share shows the workout image before sending it, and the image is now 9:16.** Share on the Workout Complete sheet opens a preview with Cancel and Share, and nothing leaves the app until you tap Share. The image is 1080 x 1920, the size of a story, where it was 1080 x 1350, and keeps its text clear of the top and bottom that story apps cover.
+
 ### Security
 
 - **Tokens, keys and passwords saved in Settings are stored encrypted, and the ones only the server uses never reach the app** (from [cooktrace#92](https://github.com/TraceApps/cooktrace/issues/92), thanks @stupleb). The NutriTrace link token, the ntfy and Gotify tokens and the music server's sign-in stay on the server: Settings shows a saved one as dots, saving the dots keeps it, and typing a new one replaces it. The AI key, ExerciseDB key and music server password still go to your own signed-in app, which uses them itself. All of them are stored encrypted with `TOKEN_ENC_KEY`, so the database, a backup or an export never holds them in plain text; ones saved before are encrypted when the server starts. Changing `TOKEN_ENC_KEY`, or `JWT_SECRET` when it isn't set, means entering them again.

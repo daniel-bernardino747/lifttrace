@@ -5,7 +5,7 @@
   import { weightUnit, caloriesBurnedEnabled, heightCm, currentWeightKg } from '../../stores/settings.js';
   import { currentUser } from '../../stores/auth.js';
   import { DB } from '../../lib/db.js';
-  import { shareWorkoutCard } from '../../lib/workoutCard.js';
+  import { renderWorkoutCard, shareWorkoutCard } from '../../lib/workoutCard.js';
   import { exportWorkoutCsv } from '../../lib/workoutCsv.js';
   import { LtApi } from '../../lib/api.js';
   import { showError } from '../../stores/toast.js';
@@ -60,14 +60,37 @@
     );
   })();
 
+  // Share shows the image first, at the 9:16 it is rendered in, and sends it
+  // only on a second tap. The blob shown is the one shared.
   let sharing = false;
+  let previewBlob = null;
+  let previewUrl = '';
   async function handleShare() {
     if (!workout || sharing) return;
     sharing = true;
-    try { await shareWorkoutCard({ ...workout, duration_min: effectiveDurationMin }, $weightUnit); }
+    try {
+      previewBlob = await renderWorkoutCard({ ...workout, duration_min: effectiveDurationMin }, $weightUnit);
+      previewUrl = previewBlob ? URL.createObjectURL(previewBlob) : '';
+    }
     catch (e) { showError(e.message || 'Share failed'); }
     sharing = false;
   }
+  function closePreview() {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = '';
+    previewBlob = null;
+  }
+  async function confirmShare() {
+    if (!previewBlob || sharing) return;
+    sharing = true;
+    try {
+      // false = the share sheet was dismissed: stay on the preview.
+      if (await shareWorkoutCard({ ...workout, duration_min: effectiveDurationMin }, $weightUnit, previewBlob)) closePreview();
+    }
+    catch (e) { showError(e.message || 'Share failed'); }
+    sharing = false;
+  }
+  $: if (!open) closePreview();
 
   let exportingCsv = false;
   async function handleExportCsv() {
@@ -175,6 +198,19 @@
         <span class="material-symbols-rounded">close</span>
       </button>
 
+      {#if previewUrl}
+      <div class="ws-preview">
+        <h3 class="ws-title">{$_('workout_summary.share_title')}</h3>
+        <img class="ws-preview-img" src={previewUrl} alt={$_('workout_summary.share_preview_alt')} />
+      </div>
+      <div class="ws-footer">
+        <button class="btn btn-secondary" on:click={closePreview} disabled={sharing}>{$_('common.cancel')}</button>
+        <button class="btn btn-primary ws-done-btn ws-share-btn" on:click={confirmShare} disabled={sharing}>
+          <span class="material-symbols-rounded" style="font-size:18px">share</span>
+          {$_('workout_summary.share')}
+        </button>
+      </div>
+      {:else}
       <div class="ws-hero">
         <!-- CSS confetti — 14 absolutely positioned dots that drop + drift
              on open. Pure CSS, no library. Hidden when reduced-motion. -->
@@ -302,6 +338,7 @@
         </button>
         <button class="btn btn-primary ws-done-btn" on:click={() => open = false}>{$_('workout_summary.done')}</button>
       </div>
+      {/if}
     </div>
   </div>
 {/if}
@@ -546,4 +583,15 @@
   }
   .ws-icon-btn .material-symbols-rounded { font-size: 20px; }
   .ws-done-btn { flex: 1; }
+
+  /* Share preview: the image at its own 9:16, as tall as the sheet allows. */
+  .ws-preview { padding: 20px 20px 4px; text-align: center; }
+  .ws-preview-img {
+    display: block; margin: 14px auto 0;
+    aspect-ratio: 9 / 16;
+    height: min(56dvh, 520px); width: auto; max-width: 100%;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+  }
+  .ws-preview + .ws-footer .ws-share-btn { justify-content: center; }
 </style>
